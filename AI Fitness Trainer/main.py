@@ -5,7 +5,8 @@ import mediapipe as mp
 import matplotlib.pyplot as plt
 from plyer import notification
 import time
-from twilio.rest import Client
+import numpy as np
+# from twilio.rest import Client
 # from threshold import get_thresholds_beginner
 
 
@@ -19,6 +20,16 @@ hip_threshold = 10  # Angle below which the hip inclination indicates start of s
 knee_threshold = 90  # Knee inclination threshold for is_squatting
 ankle_threshold = 20  # Ankle inclination threshold
 
+filename = "3.mp4"
+cap = cv2.VideoCapture(filename)
+
+fps = int(cap.get(cv2.CAP_PROP_FPS))
+frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) 
+
+mp_squat = mp.solutions.pose
+pose = mp_squat.Pose()
+
+display_scale = 0.5
 
 # initialization
 
@@ -122,28 +133,34 @@ def offsetAngle(x1, y1, x2, y2):
 
 # calculate angle hip_shldr
 def Angle_hip_shldr(x1, y1, x2, y2):
-        theta = math.acos( (y2 -y1)*(-y1) / (math.sqrt(
-        (x2 - x1)**2 + (y2 - y1)**2 ) * y1) )
+        theta = math.acos( (y2 -y1)*(-y1) / (math.sqrt((x2 - x1)**2 + (y2 - y1)**2 ) * y1) )
         degree = int(180/math.pi)*theta
         return degree
 
 def Angle_elbow_shldr(e1, f1, e2, f2):
-        theta = math.acos( (f2 -f1)*(-f1) / (math.sqrt(
-        (e2 - e1)**2 + (f2 - f1)**2 ) * f1) )
+        theta = math.acos( (f2 - f1)*(-f1) / (math.sqrt((e2 - e1)**2 + (f2 - f1)**2 ) * f1) )
         degree = int(180/math.pi)*theta
         return degree
 
-# calculate angle hip_shldr
+def calculate_angle(a, b, c):
+    a = np.array(a)
+    b = np.array(b)
+    c = np.array(c)
+    ba = a - b # vectors ba and bc
+    bc = c - b
+    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
+    angle = np.degrees(np.arccos(cosine_angle))
+    return angle
+
+# calculate angle hip_knee
 def Angle_hip_knee(a1, b1, a2, b2):
-        theta = math.acos( (b2 -b1)*(-b1) / (math.sqrt(
-        (a2 - a1)**2 + (b2 - b1)**2 ) * b1) )
+        theta = math.acos( (b2 -b1)*(-b1) / (math.sqrt((a2 - a1)**2 + (b2 - b1)**2 ) * b1))
         degree = int(180/math.pi)*theta
         return degree
 
-# calculate angle hip_shldr
+# calculate angle knee_ankle
 def Angle_knee_ankle(c1, d1, c2, d2):
-        theta = math.acos( (d2 -d1)*(-d1) / (math.sqrt(
-        (c2 - c1)**2 + (d2 - d1)**2 ) * d1) )
+        theta = math.acos( (d2 -d1)*(-d1) / (math.sqrt((c2 - c1)**2 + (d2 - d1)**2 ) * d1) )
         degree = int(180/math.pi)*theta
         return degree
 
@@ -151,7 +168,7 @@ def Angle_knee_ankle(c1, d1, c2, d2):
 def sendWarning(x):
         notification.notify(
             title = "Squat Trainer",
-            message = f"Perfect Squats done today. {x} angle!",
+        #     message = f"Perfect Squats done today. {x} angle!",
             timeout = 10
         )
 
@@ -161,16 +178,6 @@ green = (127, 255, 0)
 red = (50, 50, 255)
 yellow = (0, 255, 255)
 pink = (255, 0, 255)
-
-
-mp_squat = mp.solutions.pose
-pose = mp_squat.Pose()
-
-filename = "2.mp4"
-cap = cv2.VideoCapture(filename)
-
-fps = int(cap.get(cv2.CAP_PROP_FPS))
-frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
 
 duration_video = frame_count / fps
@@ -188,6 +195,7 @@ start_time = time.time()
 
 # width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 # height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
 
 height = 750
 width= 1500
@@ -225,30 +233,36 @@ while cap.isOpened():
 
         #TIME Calculation
         # Calculate elapsed time based on frames
-        # eclapsed_frames = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
-        # eclapsed_seconds = eclapsed_frames / fps
-        # eclapsed_microseconds = (eclapsed_frames / fps) * 1e6
-        # time_text = f'Time: {int(eclapsed_seconds // 60):02}:{int(eclapsed_seconds % 60):02}:{int(eclapsed_microseconds % 1e6):06}'
-        # remaining_seconds = (frame_count - eclapsed_frames) / fps
+        eclapsed_frames = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
+        eclapsed_seconds = eclapsed_frames / fps
+        eclapsed_microseconds = (eclapsed_frames / fps) * 1e6
+        time_text = f'Time: {int(eclapsed_seconds // 60):02}:{int(eclapsed_seconds % 60):02}:{int(eclapsed_microseconds % 1e6):06}'
+        remaining_seconds = (frame_count - eclapsed_frames) / fps
 
         # Calculate elapsed time based on frames
-        elapsed_frames = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
-        elapsed_seconds = elapsed_frames / fps
-        remaining_seconds = (frame_count - elapsed_frames) / fps
+        # elapsed_frames = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
+        # elapsed_seconds = elapsed_frames / fps
+        # remaining_seconds = (frame_count - elapsed_frames) / fps
 
         # Send message after 2 or fewer seconds remaining
         if remaining_seconds <= 2:
                 sendWarning("You have done BodyWeight squat!")
 
         # Create time text
-        elapsed_microseconds = (elapsed_frames / fps) * 1e6
-        time_text = f'Time: {int(elapsed_seconds // 60):02}:{int(elapsed_seconds % 60):02}:{int(elapsed_microseconds % 1e6):06}'
+        # elapsed_microseconds = (elapsed_frames / fps) * 1e6
+        # time_text = f'Time: {int(elapsed_seconds // 60):02}:{int(elapsed_seconds % 60):02}:{int(elapsed_microseconds % 1e6):06}'
 
         # Add the time counter to the frame
-        # cv2.putText(video, time_text, (width - 350, 30), font, 0.8, (0, 255, 0), 2)
+        cv2.putText(video, time_text, (width - 350, 30), font, 0.8, (0, 255, 0), 2)
+
+        # Landmarks on the original frame
+        if keypoints.pose_landmarks:
+                mp.solutions.drawing_utils.draw_landmarks(
+                        video, keypoints.pose_landmarks, mp_squat.POSE_CONNECTIONS
+                )
 
         # Write the frame with the time counter
-        # video_output.write(video)
+        video_output.write(video)
 
 
         # Add the time counter to the frame6
@@ -278,15 +292,21 @@ while cap.isOpened():
             l_elbow_y = int(lm.landmark[lmPose.LEFT_ELBOW].y * height)
             l_wrist_x = int(lm.landmark[lmPose.LEFT_WRIST].x * width)
             l_wrist_y = int(lm.landmark[lmPose.LEFT_WRIST].y * height)
+            l_shldr = (l_shldr_x, l_shldr_y)
+            l_elbow = (l_elbow_x, l_elbow_y)
+            l_wrist = (l_wrist_x, l_wrist_y)
 
             # calculate offset distance
             offset = offsetAngle(l_shldr_x, l_shldr_y, r_shldr_x, r_shldr_y)
-            hip_inclination = Angle_hip_shldr(l_hip_x, l_hip_y, l_shldr_x, l_shldr_y)
-            knee_inclination = Angle_hip_knee(l_knee_x, l_knee_y, l_hip_x, l_hip_y)
-            ankle_inclination = Angle_knee_ankle(l_ankle_x, l_ankle_y, l_knee_x, l_knee_y)
-            elbow_inclination = Angle_elbow_shldr(l_elbow_x, l_elbow_y, l_shldr_x, l_shldr_y)
-            wrist_inclination = Angle_elbow_shldr(l_wrist_x, l_wrist_y, l_shldr_x, l_shldr_y)
+            hip_angle = Angle_hip_shldr(l_hip_x, l_hip_y, l_shldr_x, l_shldr_y)
+            knee_angle = Angle_hip_knee(l_knee_x, l_knee_y, l_hip_x, l_hip_y)
+            ankle_angle = Angle_knee_ankle(l_ankle_x, l_ankle_y, l_knee_x, l_knee_y)
+        #     shldr_elbow_angle = Angle_elbow_shldr(l_elbow_x, l_elbow_y, l_shldr_x, l_shldr_y)
+            wrist_elbow_angle = Angle_elbow_shldr(l_wrist_x, l_wrist_y, l_elbow_x, l_elbow_y)
+            elbow_angle = calculate_angle(l_shldr, l_elbow, l_wrist)
 
+        #     shldr_wrist_angle = Angle_shldr_wrist(l_shldr_x, l_shldr_y, l_wrist_x, l_wrist_y)
+            
 
             # draw points
             cv2.circle(video, (l_shldr_x, l_shldr_y), 10, yellow, -1)
@@ -296,6 +316,7 @@ while cap.isOpened():
             cv2.circle(video, (l_ankle_x, l_ankle_y), 10, pink, -1)
             cv2.circle(video, (l_elbow_x, l_elbow_y), 10, pink, -1)
             cv2.circle(video, (l_wrist_x, l_wrist_y), 10, pink, -1)
+        #     cv2.circle(video, (l_shldr_x, l_shldr_y), (l_wrist_x, l_wrist_y), 10, pink, -1)
 
             # Draw dotted lines between the keypoints
             draw_dotted_line(video, (l_shldr_x, l_shldr_y), (l_hip_x, l_hip_y), green)
@@ -305,11 +326,13 @@ while cap.isOpened():
             draw_dotted_line(video, (l_elbow_x, l_elbow_y), (l_wrist_x, l_wrist_y), green)
 
             # Display angles
-            cv2.putText(video, f"{int(hip_inclination)}", (int((l_shldr_x + l_hip_x) / 2), int((l_shldr_y + l_hip_y) / 2)), font, 1.0, red, 5)
-            cv2.putText(video, f"{int(knee_inclination)}", (int((l_hip_x + l_knee_x) / 2), int((l_hip_y + l_knee_y) / 2)), font, 1.0, red, 5)
-            cv2.putText(video, f"{int(ankle_inclination)}", (int((l_knee_x + l_ankle_x) / 2), int((l_knee_y + l_ankle_y) / 2)), font, 1.0, red, 5)
-            #cv2.putText(video, f"{int(elbow_inclination)}", (int((l_shldr_x + l_shldr_x) / 2), int((l_elbow_y + l_elbow_y) / 2)), font, 1.0, red, 5)
-            cv2.putText(video, f"{int(wrist_inclination)}", (int((l_elbow_x + l_elbow_x) / 2), int((l_wrist_y + l_wrist_y) / 2)), font, 1.0, red, 5)
+            cv2.putText(video, f"{int(hip_angle)}", (int((l_shldr_x + l_hip_x) / 2), int((l_shldr_y + l_hip_y) / 2)), font, 1.0, red, 5)
+            cv2.putText(video, f"{int(knee_angle)}", (int((l_hip_x + l_knee_x) / 2), int((l_hip_y + l_knee_y) / 2)), font, 1.0, red, 5)
+            cv2.putText(video, f"{int(ankle_angle)}", (int((l_knee_x + l_ankle_x) / 2), int((l_knee_y + l_ankle_y) / 2)), font, 1.0, red, 5)
+        #     cv2.putText(video, f"{int(shldr_elbow_angle)}", (int((l_shldr_x + l_shldr_x) / 2), int((l_elbow_y + l_elbow_y) / 2)), font, 1.0, red, 5)
+        #     cv2.putText(video, f"{int(wrist_elbow_angle)}", (int((l_elbow_x + l_elbow_x) / 2), int((l_wrist_y + l_wrist_y) / 2)), font, 1.0, red, 5)
+
+            cv2.putText(video, f"{int(elbow_angle)}", (l_elbow_x + 20, l_elbow_y - 20), font, 0.8, red, 2)
 
             
             # check posture status
@@ -317,106 +340,107 @@ while cap.isOpened():
             color =  green
             
 
-           
             # if offset < OFFSET_THRESHOLD:
             #     cv2.putText(video, f"Aligned Properly: {int(offset)}", (width - 130, 30), font, 0.8, green, 5)
                 
-            # LOGIC
+        # LOGIC
         # Hip
-        if hip_inclination <= 10:
+        if hip_angle <= 10:
                 posture_status_hip = "Start Squat"
 
-        elif hip_inclination <= 44:
+        elif hip_angle <= 44:
                 posture_status_hip = "Lean Forward(Torso)."
                 color = yellow
                 
-        elif 45 <= hip_inclination <= 60:
+        elif 45 <= hip_angle <= 60:
                 posture_status_hip = "Perfect Torso bend."
                 color = green
 
-        elif hip_inclination > 60:
+        elif hip_angle > 60:
                 posture_status_hip = "Lean backword."
                 color = red
 
-        cv2.putText(video, f"Hip inclination: {int(hip_inclination)} - {posture_status_hip}", (7, 60), font, 1.2, color, 5)
+        cv2.putText(video, f"Hip inclination: {int(hip_angle)} - {posture_status_hip}", (7, 60), font, 1.2, color, 5)
 
                 
         # Knee
-        if knee_inclination <= 10:
+        if knee_angle <= 10:
                 posture_status_knee = "Start Squat"
                 
-        elif 11 <= knee_inclination < 89 :
+        elif 11 <= knee_angle < 89 :
                 posture_status_knee = "Bend You knees."
                 color = yellow
 
-        elif knee_inclination > 120:
+        elif knee_angle > 120:
                 posture_status_knee = "Too much Knee bend."
                 color = red
                 
-        elif 90 <= knee_inclination <= 120:
+        elif 90 <= knee_angle <= 120:
                 posture_status_knee = "Perfect Knee band."
                 color = green
-        cv2.putText(video, f"knee inclination: {int(knee_inclination)} - {posture_status_knee}", (7, 120), font, 1.2, color, 5)
+        cv2.putText(video, f"knee inclination: {int(knee_angle)} - {posture_status_knee}", (7, 120), font, 1.2, color, 5)
 
 
         # Ankle
-        if ankle_inclination < 8:
+        if ankle_angle < 8:
                 posture_status_ankle = "Start Squat"
                 
-        elif ankle_inclination > 30:
+        elif ankle_angle > 30:
                 posture_status_ankle = "Too much pressure on ankle."
                 color = red
                 
-        elif ankle_inclination < 20:
+        elif ankle_angle < 20:
                 posture_status_ankle = "Not enough ankle bend."
                 color = yellow
                 
-        elif 20 <= ankle_inclination <= 30:
+                
+        elif 20 <= ankle_angle <= 30:
                 posture_status_ankle = "Perfect Ankle bend."
                 color = green
-        cv2.putText(video, f"Ankle inclination: {int(ankle_inclination)} - {posture_status_ankle}", (7, 180), font, 1.2, color, 5)
+        cv2.putText(video, f"Ankle inclination: {int(ankle_angle)} - {posture_status_ankle}", (7, 180), font, 1.2, color, 5)
 
-        # Wrist
-        if 70 <= wrist_inclination <= 92:
-                posture_status_wrist = "Perfect elbow angle"
+
+        # Elbow
+        if 70 <= wrist_elbow_angle <= 92:
+                posture_status_elbow = "Perfect elbow angle"
                 color = green
-        elif wrist_inclination < 70:
-                posture_status_wrist = "Straighten your elbow"
+        elif wrist_elbow_angle < 70:
+                posture_status_elbow = "Straighten your elbow"
                 color = red
-        cv2.putText(video, f"Wrist inclination: {int(wrist_inclination)} - {posture_status_wrist}", (7, 240), font, 1.2, color, 5)        
-
+        # cv2.putText(video, f"Elbow bend: {int(wrist_elbow_angle)} - {posture_status_elbow}", (7, 240), font, 1.2, color, 5)        
 
 
         # Message
-        if posture_status_hip == "Perfect Torso bend." and posture_status_knee == "Perfect Knee band." and posture_status_ankle == "Perfect Ankle bend.":
-                sendWarning (f"Waring : Perfect Squat Done")
+        # if posture_status_hip == "Perfect Torso bend." and posture_status_knee == "Perfect Knee band." and posture_status_ankle == "Perfect Ankle bend.":
+        #         sendWarning (f"Waring : Perfect Squat Done")
 
                
-                    # Detect squat position transition
+        # Detect squat position transition
         if posture_status_hip == "Perfect Torso bend." and posture_status_knee == "Perfect Knee band." and posture_status_ankle == "Perfect Ankle bend.":
-                if not is_squatting:  # Up to Down
+                if not is_squatting:  # Up to down
                         is_squatting = True
         else:
-                if is_squatting:  # Down to Up
+                if is_squatting:  # Down to up
                         if posture_status_hip == "Perfect Torso bend." and posture_status_knee == "Perfect Knee band." and posture_status_ankle == "Perfect Ankle bend.":
-                            CORRECT += 1
-                        elif posture_status_hip != "Perfect Torso bend." and posture_status_knee != "Perfect Knee band." and posture_status_ankle != "Perfect Ankle bend.":
-                            INCORRECT += 1
-                        is_squatting = False
+                                INCORRECT += 1
+                                print(f"Correct Squats: {INCORRECT}")
+                        else:
+                                CORRECT += 1
+                                print(f"Incorrect Squats: {CORRECT}")
+                is_squatting = False
 
-        # Counters
-        # (2600, height - 800)
-        cv2.putText(video, f"Correct Squats: {INCORRECT}", (7, 520), font, 1.2, (0, 255, 0), 5)
-        # (2600, height - 750)
-        cv2.putText(video, f"Incorrect Squats: {CORRECT}", (7, 580), font, 1.2, (0, 0, 255), 5)
-
-
-        if posture_status_hip == "Perfect Torso bend." and posture_status_knee == "Perfect Knee band." and posture_status_ankle == "Perfect Ankle bend." and posture_status_wrist == "Perfect elbow angle":
-                sendWarning("You have done BodyWeight Squat")
+        # Display the counters
+        cv2.putText(video, f"Correct Squats: {CORRECT}", (7, 520), font, 1.2, (0, 255, 0), 5)
+        cv2.putText(video, f"Incorrect Squats: {INCORRECT}", (7, 580), font, 1.2, (0, 0, 255), 5)
 
 
-            # else:
-            #     cv2.putText(video, f"Not Aligned Properly: {int(offset)}", (width - 150, 30), font, 0.6, green, 2)
+        # if posture_status_hip == "Perfect Torso bend." and posture_status_knee == "Perfect Knee band." and posture_status_ankle == "Perfect Ankle bend." and posture_status_elbow == "Perfect elbow angle":
+        #         sendWarning("You have done BodyWeight Squat")
+                                                                                        # OR
+        if posture_status_elbow == "Perfect elbow angle":
+                print("You have done BodyWeight squat")
+
+
 
             #show posture
             # cv2.putText(video, f"Aligned: , {int(offset)}", (width - 150, 30), font, 0.9, green, 2)
